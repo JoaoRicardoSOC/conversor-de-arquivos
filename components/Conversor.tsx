@@ -6,6 +6,7 @@ import { FFmpeg } from '@ffmpeg/ffmpeg';
 import { fetchFile, toBlobURL } from '@ffmpeg/util';
 
 // 1. MEGA DICIONÁRIO DE CONVERSÕES
+// 1. MEGA DICIONÁRIO DE CONVERSÕES (Sem o PDF, apenas Mídia 100% suportada)
 const regrasDeConversao: Record<string, string[]> = {
   // Vídeos
   'MP4': ['MOV', 'AVI', 'MKV', 'WEBM', 'GIF', 'MP3', 'WAV', 'OGG', 'M4A'],
@@ -20,16 +21,13 @@ const regrasDeConversao: Record<string, string[]> = {
   'OGG': ['MP3', 'WAV', 'M4A'],
   'M4A': ['MP3', 'WAV', 'OGG'],
 
-  // Imagens
-  'JPG': ['PNG', 'WEBP', 'GIF', 'BMP', 'PDF'],
-  'JPEG': ['PNG', 'WEBP', 'GIF', 'BMP', 'PDF'], // Adicionado JPEG
-  'PNG': ['JPG', 'JPEG', 'WEBP', 'GIF', 'BMP', 'PDF'],
+  // Imagens (Todos se convertem entre si perfeitamente)
+  'JPG': ['PNG', 'WEBP', 'GIF', 'BMP'],
+  'JPEG': ['PNG', 'WEBP', 'GIF', 'BMP'],
+  'PNG': ['JPG', 'JPEG', 'WEBP', 'GIF', 'BMP'],
   'WEBP': ['JPG', 'JPEG', 'PNG', 'GIF', 'BMP'],
   'BMP': ['JPG', 'JPEG', 'PNG', 'WEBP', 'GIF'],
-  'GIF': ['MP4', 'MOV', 'JPG', 'PNG', 'WEBP'], // GIF é especial (vai pra vídeo ou imagem)
-
-  // Documentos
-  'PDF': ['JPG', 'JPEG', 'PNG'],
+  'GIF': ['MP4', 'MOV', 'JPG', 'PNG', 'WEBP'],
 };
 
 // 2. ÍCONES DINÂMICOS ATUALIZADOS
@@ -51,8 +49,7 @@ const obterMimeType = (extensao: string) => {
     'MKV': 'video/x-matroska', 'WEBM': 'video/webm',
     'MP3': 'audio/mpeg', 'WAV': 'audio/wav', 'OGG': 'audio/ogg', 'M4A': 'audio/mp4',
     'JPG': 'image/jpeg', 'JPEG': 'image/jpeg', 'PNG': 'image/png', 
-    'WEBP': 'image/webp', 'GIF': 'image/gif', 'BMP': 'image/bmp',
-    'PDF': 'application/pdf'
+    'WEBP': 'image/webp', 'GIF': 'image/gif', 'BMP': 'image/bmp'
   };
   return tipos[extensao] || 'application/octet-stream';
 };
