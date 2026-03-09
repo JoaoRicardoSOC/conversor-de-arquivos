@@ -5,42 +5,73 @@ import { FileVideo, FileImage, FileText, ChevronDown, ArrowRight, Music, UploadC
 import { FFmpeg } from '@ffmpeg/ffmpeg';
 import { fetchFile, toBlobURL } from '@ffmpeg/util';
 
-// Regras estritas do que pode ser convertido
+// 1. MEGA DICIONÁRIO DE CONVERSÕES
 const regrasDeConversao: Record<string, string[]> = {
-  'MOV': ['MP4', 'GIF', 'MP3'],
-  'MP4': ['MOV', 'GIF', 'MP3'],
-  'JPG': ['PNG', 'WEBP', 'PDF'],
-  'PDF': ['JPG', 'PNG'],
+  // Vídeos
+  'MP4': ['MOV', 'AVI', 'MKV', 'WEBM', 'GIF', 'MP3', 'WAV', 'OGG', 'M4A'],
+  'MOV': ['MP4', 'AVI', 'MKV', 'WEBM', 'GIF', 'MP3', 'WAV', 'OGG', 'M4A'],
+  'AVI': ['MP4', 'MOV', 'MKV', 'WEBM', 'GIF', 'MP3', 'WAV', 'OGG', 'M4A'],
+  'MKV': ['MP4', 'MOV', 'AVI', 'WEBM', 'GIF', 'MP3', 'WAV', 'OGG', 'M4A'],
+  'WEBM': ['MP4', 'MOV', 'AVI', 'MKV', 'GIF', 'MP3', 'WAV', 'OGG', 'M4A'],
+  
+  // Áudios
+  'MP3': ['WAV', 'OGG', 'M4A'],
+  'WAV': ['MP3', 'OGG', 'M4A'],
+  'OGG': ['MP3', 'WAV', 'M4A'],
+  'M4A': ['MP3', 'WAV', 'OGG'],
+
+  // Imagens
+  'JPG': ['PNG', 'WEBP', 'GIF', 'BMP', 'PDF'],
+  'JPEG': ['PNG', 'WEBP', 'GIF', 'BMP', 'PDF'], // Adicionado JPEG
+  'PNG': ['JPG', 'JPEG', 'WEBP', 'GIF', 'BMP', 'PDF'],
+  'WEBP': ['JPG', 'JPEG', 'PNG', 'GIF', 'BMP'],
+  'BMP': ['JPG', 'JPEG', 'PNG', 'WEBP', 'GIF'],
+  'GIF': ['MP4', 'MOV', 'JPG', 'PNG', 'WEBP'], // GIF é especial (vai pra vídeo ou imagem)
+
+  // Documentos
+  'PDF': ['JPG', 'JPEG', 'PNG'],
 };
 
-// Ícones dinâmicos baseados no formato
+// 2. ÍCONES DINÂMICOS ATUALIZADOS
 const getIcone = (extensao: string) => {
-  if (['MOV', 'MP4'].includes(extensao)) return <FileVideo className="w-5 h-5 text-gray-400" />;
-  if (['JPG', 'PNG', 'WEBP'].includes(extensao)) return <FileImage className="w-5 h-5 text-gray-400" />;
-  if (['PDF'].includes(extensao)) return <FileText className="w-5 h-5 text-gray-400" />;
-  if (['MP3'].includes(extensao)) return <Music className="w-5 h-5 text-gray-400" />;
+  const videos = ['MOV', 'MP4', 'AVI', 'MKV', 'WEBM'];
+  const audios = ['MP3', 'WAV', 'OGG', 'M4A'];
+  const imagens = ['JPG', 'JPEG', 'PNG', 'WEBP', 'GIF', 'BMP'];
+
+  if (videos.includes(extensao)) return <FileVideo className="w-5 h-5 text-gray-400" />;
+  if (imagens.includes(extensao)) return <FileImage className="w-5 h-5 text-gray-400" />;
+  if (audios.includes(extensao)) return <Music className="w-5 h-5 text-gray-400" />;
   return <FileText className="w-5 h-5 text-gray-400" />;
 };
 
+// 3. IDENTIFICADOR INTELIGENTE DE TIPOS (MIME TYPES)
+const obterMimeType = (extensao: string) => {
+  const tipos: Record<string, string> = {
+    'MP4': 'video/mp4', 'MOV': 'video/quicktime', 'AVI': 'video/x-msvideo', 
+    'MKV': 'video/x-matroska', 'WEBM': 'video/webm',
+    'MP3': 'audio/mpeg', 'WAV': 'audio/wav', 'OGG': 'audio/ogg', 'M4A': 'audio/mp4',
+    'JPG': 'image/jpeg', 'JPEG': 'image/jpeg', 'PNG': 'image/png', 
+    'WEBP': 'image/webp', 'GIF': 'image/gif', 'BMP': 'image/bmp',
+    'PDF': 'application/pdf'
+  };
+  return tipos[extensao] || 'application/octet-stream';
+};
+
 export default function Conversor() {
-  // Estados da Interface
   const [origem, setOrigem] = useState<string>('MOV');
   const [destino, setDestino] = useState<string>('MP4');
   const [menuOrigemAberto, setMenuOrigemAberto] = useState(false);
   const [menuDestinoAberto, setMenuDestinoAberto] = useState(false);
   
-  // Estados dos Arquivos
   const [arquivos, setArquivos] = useState<File[]>([]);
   const [erro, setErro] = useState<string | null>(null);
   const [arrastando, setArrastando] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // Estados do Processamento
   const [emConversao, setEmConversao] = useState(false);
   const [progresso, setProgresso] = useState(0);
   const [concluido, setConcluido] = useState(false);
   
-  // Referências do FFmpeg
   const ffmpegRef = useRef(new FFmpeg());
   const [ffmpegCarregado, setFfmpegCarregado] = useState(false);
   const [arquivosConvertidos, setArquivosConvertidos] = useState<{nome: string, url: string}[]>([]);
@@ -48,7 +79,6 @@ export default function Conversor() {
   const formatosOrigem = Object.keys(regrasDeConversao);
   const formatosDestino = regrasDeConversao[origem];
 
-  // Inicia o motor assim que o componente é montado no navegador
   useEffect(() => {
     carregarFFmpeg();
   }, []);
@@ -58,15 +88,12 @@ export default function Conversor() {
       const baseURL = 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd';
       const ffmpeg = ffmpegRef.current;
       
-      // Ouve o progresso
       ffmpeg.on('progress', ({ progress }) => {
         setProgresso(Math.round(progress * 100));
       });
 
-      // Ouve os logs de sistema para debug (opcional, bom ter no console)
       ffmpeg.on('log', ({ message }) => console.log('FFmpeg:', message));
 
-      // Carrega os binários WebAssembly
       await ffmpeg.load({
         coreURL: await toBlobURL(`${baseURL}/ffmpeg-core.js`, 'text/javascript'),
         wasmURL: await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, 'application/wasm'),
@@ -97,10 +124,14 @@ export default function Conversor() {
 
     for (const file of novosArquivos) {
       const extensaoArquivo = file.name.split('.').pop()?.toUpperCase() || '';
-      if (extensaoArquivo === origem) {
+      
+      // TRUQUE DO JPEG: Permite que JPG e JPEG sejam aceitos juntos
+      const isJpg = ['JPG', 'JPEG'].includes(extensaoArquivo) && ['JPG', 'JPEG'].includes(origem);
+
+      if (extensaoArquivo === origem || isJpg) {
         arquivosValidos.push(file);
       } else {
-        setErro(`Ops! O arquivo "${file.name}" não é um formato .${origem}.`);
+        setErro(`Ops! O arquivo "${file.name}" não corresponde ao formato .${origem}.`);
       }
     }
 
@@ -114,7 +145,6 @@ export default function Conversor() {
     setArquivosConvertidos([]);
   };
 
-  // NÚCLEO ROBUSTO DE CONVERSÃO
   const iniciarConversao = async () => {
     if (!ffmpegCarregado) {
       setErro("O motor de conversão ainda está a carregar.");
@@ -128,53 +158,42 @@ export default function Conversor() {
 
     try {
       for (const arquivo of arquivos) {
-        // Usamos Date.now() para garantir nomes únicos e não encavalar ficheiros na RAM
         const nomeEntrada = `entrada_${Date.now()}.${origem.toLowerCase()}`;
         const nomeSaida = `saida_${Date.now()}.${destino.toLowerCase()}`;
 
-        // 1. Escreve na RAM
         await ffmpeg.writeFile(nomeEntrada, await fetchFile(arquivo));
 
-        // 2. Lógica Inteligente de Parâmetros
         let argumentosFfmpeg = ['-i', nomeEntrada];
         
+        // Mantém a cópia rápida (4K) para MOV e MP4
         if (['MOV', 'MP4'].includes(origem) && ['MOV', 'MP4'].includes(destino)) {
-          // Mantém 100% da qualidade original sem usar CPU (Stream Copy)
           argumentosFfmpeg.push('-c', 'copy');
-        } else if (destino === 'MP3') {
-          // Extrai áudio com boa qualidade
-          argumentosFfmpeg.push('-vn', '-c:a', 'libmp3lame', '-q:a', '2');
+        } 
+        // Lógica para extrair áudio de qualquer vídeo
+        else if (['MP3', 'WAV', 'OGG', 'M4A'].includes(destino)) {
+          argumentosFfmpeg.push('-vn'); // Remove o vídeo
+          if (destino === 'MP3') argumentosFfmpeg.push('-c:a', 'libmp3lame', '-q:a', '2');
         }
         
         argumentosFfmpeg.push(nomeSaida);
 
-        // 3. Executa o WebAssembly
         await ffmpeg.exec(argumentosFfmpeg);
         
-        // 4. Lê o resultado final
         const data = await ffmpeg.readFile(nomeSaida) as Uint8Array;
         
-        // 5. Define o tipo de ficheiro correto (MIME Type) para o navegador baixar certo
-        let mimeType = 'application/octet-stream';
-        if (destino === 'MP4') mimeType = 'video/mp4';
-        else if (destino === 'MOV') mimeType = 'video/quicktime';
-        else if (destino === 'GIF') mimeType = 'image/gif';
-        else if (destino === 'MP3') mimeType = 'audio/mpeg';
-        else if (destino === 'JPG') mimeType = 'image/jpeg';
-        else if (destino === 'PNG') mimeType = 'image/png';
-        else if (destino === 'WEBP') mimeType = 'image/webp';
-        else if (destino === 'PDF') mimeType = 'application/pdf';
+        // Puxa o Mime Type correto para o navegador não bugar o arquivo
+        const mimeType = obterMimeType(destino);
 
-        // 6. Prepara para Download (com a correção rigorosa do TypeScript)
         const blob = new Blob([data.buffer as ArrayBuffer], { type: mimeType });
         const url = URL.createObjectURL(blob);
         
+        // Limpa a extensão original (mesmo se for .jpeg) e adiciona a nova
+        const nomeSemExtensao = arquivo.name.substring(0, arquivo.name.lastIndexOf('.'));
         novosConvertidos.push({
-          nome: arquivo.name.replace(new RegExp(`\\.${origem}$`, 'i'), `.${destino.toLowerCase()}`),
+          nome: `${nomeSemExtensao}.${destino.toLowerCase()}`,
           url: url
         });
 
-        // 7. PREVENÇÃO DE MEMORY LEAK: Limpa a RAM do utilizador imediatamente
         await ffmpeg.deleteFile(nomeEntrada);
         await ffmpeg.deleteFile(nomeSaida);
       }
@@ -207,11 +226,10 @@ export default function Conversor() {
             Conversor de Arquivos
           </h1>
           <p className="text-gray-400 text-lg">
-            {!ffmpegCarregado ? "Preparando motor de conversão (isso pode levar alguns segundos na primeira vez)..." : "Selecione os formatos e faça o upload para começar."}
+            {!ffmpegCarregado ? "Preparando motor de conversão..." : "Selecione os formatos e faça o upload para começar."}
           </p>
         </div>
 
-        {/* ÁREA DOS MENUS */}
         <div className={`flex flex-col md:flex-row items-center justify-center gap-6 ${emConversao || concluido || !ffmpegCarregado ? 'opacity-50 pointer-events-none' : ''}`}>
           <div className="relative w-48 z-20">
             <button onClick={() => { setMenuOrigemAberto(!menuOrigemAberto); setMenuDestinoAberto(false); }} className="w-full flex items-center justify-between bg-[#0a0a0a] border border-gray-800 hover:bg-gray-900 text-white px-5 py-4 rounded-xl transition-all">
@@ -219,7 +237,7 @@ export default function Conversor() {
               <ChevronDown className={`w-4 h-4 text-gray-500 transition-transform ${menuOrigemAberto ? 'rotate-180' : ''}`} />
             </button>
             {menuOrigemAberto && (
-              <div className="absolute top-full mt-2 w-full bg-[#0a0a0a] border border-gray-800 rounded-xl overflow-hidden shadow-2xl">
+              <div className="absolute top-full mt-2 w-full bg-[#0a0a0a] border border-gray-800 rounded-xl overflow-hidden shadow-2xl max-h-60 overflow-y-auto custom-scrollbar">
                 {formatosOrigem.map((ext) => (
                   <button key={ext} onClick={() => handleTrocarOrigem(ext)} className="w-full flex items-center gap-3 text-left px-5 py-3 hover:bg-gray-800 text-white transition-colors">
                     {getIcone(ext)}<span>{ext}</span>
@@ -237,7 +255,7 @@ export default function Conversor() {
               <ChevronDown className={`w-4 h-4 text-gray-500 transition-transform ${menuDestinoAberto ? 'rotate-180' : ''}`} />
             </button>
             {menuDestinoAberto && (
-              <div className="absolute top-full mt-2 w-full bg-[#0a0a0a] border border-gray-800 rounded-xl overflow-hidden shadow-2xl">
+              <div className="absolute top-full mt-2 w-full bg-[#0a0a0a] border border-gray-800 rounded-xl overflow-hidden shadow-2xl max-h-60 overflow-y-auto custom-scrollbar">
                 {formatosDestino.map((ext) => (
                   <button key={ext} onClick={() => { setDestino(ext); setMenuDestinoAberto(false); }} className="w-full flex items-center gap-3 text-left px-5 py-3 hover:bg-gray-800 text-white transition-colors">
                     {getIcone(ext)}<span>{ext}</span>
@@ -248,7 +266,6 @@ export default function Conversor() {
           </div>
         </div>
 
-        {/* ÁREA DE ARRASTAR E SOLTAR */}
         <div className="w-full max-w-2xl mx-auto mt-8">
           {!emConversao && !concluido && (
             <>
@@ -264,7 +281,7 @@ export default function Conversor() {
                 {!ffmpegCarregado ? <Loader2 className="w-12 h-12 text-gray-500 animate-spin" /> : <UploadCloud className={`w-12 h-12 ${arrastando ? 'text-white' : 'text-gray-500'}`} />}
                 <div>
                   <p className="text-white font-medium text-lg">{!ffmpegCarregado ? 'Baixando ferramentas locais...' : 'Clique ou arraste seus arquivos aqui'}</p>
-                  {ffmpegCarregado && <p className="text-gray-500 text-sm mt-1">Apenas arquivos .{origem} são permitidos</p>}
+                  {ffmpegCarregado && <p className="text-gray-500 text-sm mt-1">Apenas arquivos .{origem} {origem === 'JPG' ? '(ou .JPEG) ' : ''}são permitidos</p>}
                 </div>
               </div>
 
@@ -272,7 +289,6 @@ export default function Conversor() {
             </>
           )}
 
-          {/* LISTAGEM E PROGRESSO */}
           {arquivos.length > 0 && (
             <div className="mt-6 text-left space-y-4">
               {!concluido && !emConversao && (
