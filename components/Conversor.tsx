@@ -5,8 +5,7 @@ import { FileVideo, FileImage, FileText, ChevronDown, ArrowRight, Music, UploadC
 import { FFmpeg } from '@ffmpeg/ffmpeg';
 import { fetchFile, toBlobURL } from '@ffmpeg/util';
 
-// 1. MEGA DICIONÁRIO DE CONVERSÕES
-// 1. MEGA DICIONÁRIO DE CONVERSÕES (Sem o PDF, apenas Mídia 100% suportada)
+// 1. MEGA DICIONÁRIO DE CONVERSÕES (Agora com AVIF incluído)
 const regrasDeConversao: Record<string, string[]> = {
   // Vídeos
   'MP4': ['MOV', 'AVI', 'MKV', 'WEBM', 'GIF', 'MP3', 'WAV', 'OGG', 'M4A'],
@@ -21,20 +20,21 @@ const regrasDeConversao: Record<string, string[]> = {
   'OGG': ['MP3', 'WAV', 'M4A'],
   'M4A': ['MP3', 'WAV', 'OGG'],
 
-  // Imagens (Todos se convertem entre si perfeitamente)
-  'JPG': ['PNG', 'WEBP', 'GIF', 'BMP'],
-  'JPEG': ['PNG', 'WEBP', 'GIF', 'BMP'],
-  'PNG': ['JPG', 'JPEG', 'WEBP', 'GIF', 'BMP'],
-  'WEBP': ['JPG', 'JPEG', 'PNG', 'GIF', 'BMP'],
-  'BMP': ['JPG', 'JPEG', 'PNG', 'WEBP', 'GIF'],
-  'GIF': ['MP4', 'MOV', 'JPG', 'PNG', 'WEBP'],
+  // Imagens (AVIF adicionado em todas as combinações de imagens)
+  'JPG': ['PNG', 'WEBP', 'AVIF', 'GIF', 'BMP'],
+  'JPEG': ['PNG', 'WEBP', 'AVIF', 'GIF', 'BMP'],
+  'PNG': ['JPG', 'JPEG', 'WEBP', 'AVIF', 'GIF', 'BMP'],
+  'WEBP': ['JPG', 'JPEG', 'PNG', 'AVIF', 'GIF', 'BMP'],
+  'AVIF': ['JPG', 'JPEG', 'PNG', 'WEBP', 'GIF', 'BMP'], // <- Nova regra de origem
+  'BMP': ['JPG', 'JPEG', 'PNG', 'WEBP', 'AVIF', 'GIF'],
+  'GIF': ['MP4', 'MOV', 'JPG', 'PNG', 'WEBP', 'AVIF'],
 };
 
 // 2. ÍCONES DINÂMICOS ATUALIZADOS
 const getIcone = (extensao: string) => {
   const videos = ['MOV', 'MP4', 'AVI', 'MKV', 'WEBM'];
   const audios = ['MP3', 'WAV', 'OGG', 'M4A'];
-  const imagens = ['JPG', 'JPEG', 'PNG', 'WEBP', 'GIF', 'BMP'];
+  const imagens = ['JPG', 'JPEG', 'PNG', 'WEBP', 'AVIF', 'GIF', 'BMP']; // <- AVIF adicionado aqui
 
   if (videos.includes(extensao)) return <FileVideo className="w-5 h-5 text-gray-400" />;
   if (imagens.includes(extensao)) return <FileImage className="w-5 h-5 text-gray-400" />;
@@ -49,7 +49,7 @@ const obterMimeType = (extensao: string) => {
     'MKV': 'video/x-matroska', 'WEBM': 'video/webm',
     'MP3': 'audio/mpeg', 'WAV': 'audio/wav', 'OGG': 'audio/ogg', 'M4A': 'audio/mp4',
     'JPG': 'image/jpeg', 'JPEG': 'image/jpeg', 'PNG': 'image/png', 
-    'WEBP': 'image/webp', 'GIF': 'image/gif', 'BMP': 'image/bmp'
+    'WEBP': 'image/webp', 'AVIF': 'image/avif', 'GIF': 'image/gif', 'BMP': 'image/bmp' // <- Mime Type do AVIF adicionado
   };
   return tipos[extensao] || 'application/octet-stream';
 };
